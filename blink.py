@@ -3,6 +3,7 @@ from machine import I2C
 from machine import lightsleep
 from machine import freq
 from time import sleep
+import time
 import gc
 
 # -––––––––––––––––––––––––––––––––––––––––––––––– Constants
@@ -11,6 +12,11 @@ I2C_SDA_PIN = Pin(I2C_SDA_PIN_INDEX) # Pin labeled 1 on Pico is PIN_0
 I2C_SCL_PIN_INDEX = 1
 I2C_SCL_PIN = Pin(I2C_SCL_PIN_INDEX) # Pin labeled 2 on Pico is PIN_1
 I2C_SCL_PIN = Pin(I2C_SCL_PIN_INDEX) # Pin labeled 2 on Pico is PIN_1
+
+MOTOR_CTRL_PIN_INDEX = 3
+MOTOR_CTRL_PIN = Pin(MOTOR_CTRL_PIN_INDEX, Pin.OUT) # Pin labeled 2 on Pico is PIN_1
+MOTOR_CLOSEST_DELAY = 50
+MOTOR_FARTHEST_DELAY = 1500
 
 LED_PIN = Pin(25, Pin.OUT)
 
@@ -84,9 +90,13 @@ def wait_for_deactivate():
 # -––––––––––––––––––––––––––––––––––––––––––––––– Activate Button
 
 # -––––––––––––––––––––––––––––––––––––––––––––––– Power ON
+motor_toggle_time = 0
+motor_control = 1
 def run_on_cycle():
     global i2c_handler
     global system_state
+    global motor_toggle_time
+    global motor_control
     global ACTIVATE_BTN_PIN
     global LED_PIN
     
@@ -122,13 +132,22 @@ def run_on_cycle():
             #
             print(f"Distance: {distance}, Signal: {sig_strength}, Temp: {temperature}", end="\n")
             
+            motor_control = max(0, distance / 700.0)
+            
             sleep(1 / float(MEASUREMENTS_PER_SECOND)) # sleep 1sec
+            
+            # Motor
+            if time.ticks_ms() > motor_toggle_time:
+                MOTOR_CTRL_PIN.toggle()
+                
+                motor_toggle_time = time.ticks_ms() + MOTOR_CLOSEST_DELAY + (MOTOR_FARTHEST_DELAY - MOTOR_CLOSEST_DELAY) * motor_control
     finally:
         print("")
         power_sensor(False)
         deinit_i2c()
         system_state = SYSTEM_STATE.NONE
         LED_PIN.off()
+        MOTOR_CTRL_PIN.off()
         print("Button Released\n--------------\n")
     
 # -––––––––––––––––––––––––––––––––––––––––––––––– Power ON
